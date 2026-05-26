@@ -1,6 +1,7 @@
 use core::convert::Infallible;
 use core::marker::PhantomData;
 
+use cortex_m::Peripherals;
 use crate::codec::{Codec, Pins as CodecPins};
 use defmt::info;
 use embassy_stm32::{self as hal, Peri, bind_interrupts, dma};
@@ -14,6 +15,29 @@ pub const BLOCK_LENGTH: usize = 32; // 32 samples
 pub const HALF_DMA_BUFFER_LENGTH: usize = BLOCK_LENGTH * 2; //  2 channels
 pub const DMA_BUFFER_LENGTH: usize = HALF_DMA_BUFFER_LENGTH * 2; //  2 half-blocks
 
+const DCACHE_LINE_SIZE: usize = 32;
+
+#[repr(align(32))]
+pub struct CacheAligned<T>(pub T);
+
+#[inline(always)]
+pub(crate) unsafe fn invalidate_dcache_for_dma_read<T>(slice: &mut [T]) {
+    debug_assert_eq!((slice.as_ptr() as usize) % DCACHE_LINE_SIZE, 0);
+    debug_assert_eq!(core::mem::size_of_val(slice) % DCACHE_LINE_SIZE, 0);
+
+    let mut cp = Peripherals::steal();
+    cp.SCB.invalidate_dcache_by_slice(slice);
+}
+
+#[inline(always)]
+pub(crate) fn clean_dcache_for_dma_write<T>(slice: &[T]) {
+    debug_assert_eq!((slice.as_ptr() as usize) % DCACHE_LINE_SIZE, 0);
+    debug_assert_eq!(core::mem::size_of_val(slice) % DCACHE_LINE_SIZE, 0);
+
+    let mut cp = unsafe { Peripherals::steal() };
+    cp.SCB.clean_dcache_by_slice(slice);
+}
+
 // - static data --------------------------------------------------------------
 
 //DMA buffer must be in special region. Refer https://embassy.dev/book/#_stm32_bdma_only_working_out_of_some_ram_regions
@@ -21,6 +45,8 @@ pub const DMA_BUFFER_LENGTH: usize = HALF_DMA_BUFFER_LENGTH * 2; //  2 half-bloc
 static TX_BUFFER: GroundedArrayCell<u32, DMA_BUFFER_LENGTH> = GroundedArrayCell::uninit();
 #[unsafe(link_section = ".sram1_bss")]
 static RX_BUFFER: GroundedArrayCell<u32, DMA_BUFFER_LENGTH> = GroundedArrayCell::uninit();
+
+
 
 // - Interrupts ---------------------------------------------------------------
 bind_interrupts!(pub struct AudioIrqs{
@@ -55,7 +81,7 @@ impl<'a> AudioPeripherals<'a> {
     /// in the Idle state, allowing the runtime to decide when to start audio callbacks using `start_interface()`.
     ///
     /// # Arguments
-    /// * `audio_config` - Audio configuration parameters such as the sample rate.  
+    /// * `audio_config` - Audio configuration parameters such as the sample rate.
     ///   You can use `AudioConfig::default()` or `Default::default()` for default settings.
     ///
     /// # Notes
@@ -167,8 +193,8 @@ impl Interface<'_, Running> {
         mut callback: impl FnMut(&[u32], &mut [u32]),
     ) -> Result<Infallible, sai::Error> {
         info!("enter audio callback loop");
-        let mut write_buf = [0; HALF_DMA_BUFFER_LENGTH];
-        let mut read_buf = [0; HALF_DMA_BUFFER_LENGTH];
+        let mut write_buf = [0u32; HALF_DMA_BUFFER_LENGTH];
+        let mut read_buf = [0u32; HALF_DMA_BUFFER_LENGTH];
         loop {
             self.codec.read(&mut read_buf).await?;
             callback(&read_buf, &mut write_buf);

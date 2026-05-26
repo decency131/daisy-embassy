@@ -25,13 +25,13 @@ SECTIONS
 {
     .sram1_bss (NOLOAD) :
     {
-        . = ALIGN(4);
+        . = ALIGN(32);
         _ssram1_bss = .;
 
         PROVIDE(__sram1_bss_start__ = _sram1_bss);
         *(.sram1_bss)
         *(.sram1_bss*)
-        . = ALIGN(4);
+        . = ALIGN(32);
         _esram1_bss = .;
 
         PROVIDE(__sram1_bss_end__ = _esram1_bss);

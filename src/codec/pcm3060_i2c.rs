@@ -162,8 +162,9 @@ impl<'a> Codec<'a> {
     pub async fn start(&mut self) -> Result<(), sai::Error> {
         info!("start SAI");
 
-        let write_buf = [0; HALF_DMA_BUFFER_LENGTH];
-        self.sai_tx.write(&write_buf).await?;
+        let write_buf = crate::audio::CacheAligned([0u32; HALF_DMA_BUFFER_LENGTH]);
+        clean_dcache_for_dma_write(&write_buf.0);
+        self.sai_tx.write(&write_buf.0).await?;
         self.sai_rx.start()
     }
 
@@ -178,11 +179,18 @@ impl<'a> Codec<'a> {
     }
 
     pub async fn read(&mut self, read_buf: &mut [u32]) -> Result<(), sai::Error> {
+        unsafe {
+            invalidate_dcache_for_dma_read(read_buf);
+        }
         self.sai_rx.read(read_buf).await
     }
 
     pub async fn write(&mut self, write_buf: &[u32]) -> Result<(), sai::Error> {
         self.sai_tx.write(write_buf).await
+
+        unsafe {
+            clean_dcache_for_dma_write(write_buf);
+        }
     }
 }
 

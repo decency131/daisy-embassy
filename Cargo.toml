@@ -12,9 +12,9 @@ categories = ["embedded"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-embassy-stm32 = { version = "0.6.0", features = ["defmt", "stm32h750ib", "time-driver-tim5", "exti", "memory-x", "unstable-pac", "chrono"] }
-embassy-time = { version = "0.5.0", features = ["defmt", "defmt-timestamp-uptime", "tick-hz-32_768", "generic-queue-8"] }
-embassy-sync = { version = "0.7.2", features = ["defmt"] }
+embassy-stm32 = { version = "0.2.0", features = ["defmt", "stm32h750ib", "time-driver-tim5", "exti", "memory-x", "unstable-pac", "chrono"] }
+embassy-time = { version = "0.4.0", features = ["defmt", "defmt-timestamp-uptime", "tick-hz-32_768"] }
+embassy-sync = { version = "0.6.2", features = ["defmt"] }
 cortex-m = "0.7.7"
 static_cell = "2.1.1"
 defmt = "1.0.1"
@@ -92,4 +92,3 @@ path = "examples/looper.rs"
 [[example]]
 name = "usb_uac"
 path = "examples/usb_uac.rs"
-
